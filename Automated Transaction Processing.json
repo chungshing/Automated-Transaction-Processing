@@ -1,0 +1,455 @@
+{
+  "name": "Automated Transaction Processing",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        64,
+        -128
+      ],
+      "id": "73ae4b48-9d78-4e9e-87cc-cac017ba50ab",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "jsCode": "const monthNames = [\n  \"January\", \"February\", \"March\", \"April\", \"May\", \"June\",\n  \"July\", \"August\", \"September\", \"October\", \"November\", \"December\"\n];\n\n// Get the date from input or fallback to today\nconst dateStr = items[0].json.Date || new Date().toISOString(); \nconst date = new Date(dateStr);\n\nconst year = date.getFullYear();\nconst monthName = monthNames[date.getMonth()];\n\nreturn [{ json: { sheetName: `${monthName} ${year}` } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        288,
+        -128
+      ],
+      "id": "cf7872a7-52bc-4af4-be9c-b5934561ef37",
+      "name": "Determine Dynamic Sheet Name"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "={{ $json.sheetName }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        512,
+        -128
+      ],
+      "id": "7de5c093-5d75-4c32-8b6d-7614729637f6",
+      "name": "Get row(s) in sheet",
+      "executeOnce": false,
+      "alwaysOutputData": false,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_OAUTH_ID",
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "title": "{{ $json.sheetName }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        736,
+        -128
+      ],
+      "id": "ac98c213-a66c-45de-9228-1561ed3073e4",
+      "name": "Create sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_OAUTH_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const monthNames = [\n  \"January\", \"February\", \"March\", \"April\", \"May\", \"June\",\n  \"July\", \"August\", \"September\", \"October\", \"November\", \"December\"\n];\n\n// Get the date from input or fallback to today\nconst dateStr = items[0].json.Date || new Date().toISOString(); \nconst currentDate = new Date(dateStr);\n\n// Move to the previous month\nconst previousMonthDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);\n\nconst prevYear = previousMonthDate.getFullYear();\nconst prevMonthName = monthNames[previousMonthDate.getMonth()];\n\nreturn [{ json: { sheetName: `${prevMonthName} ${prevYear}` } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        -56
+      ],
+      "id": "b7506017-50a7-44c1-a20d-2ff74e16c479",
+      "name": "Return Previous Month Sheet"
+    },
+    {
+      "parameters": {
+        "jsCode": "function toSGTISOString(date) {\n  const tzOffsetMs = 8 * 60 * 60 * 1000;\n  const sgtDate = new Date(date.getTime() + tzOffsetMs);\n  return sgtDate.toISOString().replace('Z', '+08:00');\n}\n\n// Check if items is empty OR only contains an empty object\nif (\n  !items ||\n  items.length === 0 ||\n  (items.length === 1 && Object.keys(items[0].json).length === 0)\n) {\n  // Sheet empty or empty object: return first day of current month at midnight SGT\n  const now = new Date();\n  const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);\n  return [{\n    json: {\n      lastDate: toSGTISOString(firstDayOfMonth)\n    }\n  }];\n}\n\nlet latestItem = null;\nlet latestTime = 0;\n\nfor (const item of items) {\n  const dateStr = item.json.EmailTimestamp;\n  const time = new Date(dateStr).getTime();\n\n  if (!isNaN(time) && time > latestTime) {\n    latestTime = time;\n    latestItem = item;\n  }\n}\n\nif (latestItem) {\n  const newTime = latestTime + 5000; \n  const newDate = new Date(newTime);\n  return [{\n    json: {\n      lastDate: toSGTISOString(newDate)\n    }\n  }];\n}\n\n// Fallback: no valid date found, return first day of current month\nconst now = new Date();\nconst firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);\nreturn [{\n  json: {\n    lastDate: toSGTISOString(firstDayOfMonth)\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        736,
+        -320
+      ],
+      "id": "f5cfaf05-0c98-4a23-ad38-3b566e2de29e",
+      "name": "Get latest Date"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "returnAll": true,
+        "simple": false,
+        "filters": {
+          "receivedAfter": "={{ $json.lastDate }}",
+          "sender": "Add the email notification sender"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        960,
+        -320
+      ],
+      "id": "1dfe2f6c-e86b-4b43-bb04-d143018c5c75",
+      "name": "Get many messages",
+      "webhookId": "cfe4674a-9186-44da-846a-c92b1e533053",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "GOOGLE_SHEETS_OAUTH_ID",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const monthNames = [\n  \"January\", \"February\", \"March\", \"April\", \"May\", \"June\",\n  \"July\", \"August\", \"September\", \"October\", \"November\", \"December\"\n];\n\nreturn items\n  .filter(item => item.json.amount !== 0 && (item.json.date || item.json.merchant))\n  .map(item => {\n    const dateParts = item.json.date?.split(\"-\"); // e.g., \"2025-07-08\"\n    let sheetName = \"Unknown\";\n\n    if (dateParts && dateParts.length === 3) {\n      const year = dateParts[0];\n      const month = parseInt(dateParts[1], 10) - 1;\n      sheetName = `${monthNames[month]} ${year}`;\n    }\n\n    return {\n      json: {\n        Date: item.json.date,\n        Time: item.json.time,\n        Amount: item.json.amount,\n        Type: item.json.currency,\n        Source: item.json.source,\n        Note: item.json.merchant?.trim()  || '',\n        EmailTimestamp: item.json.emailTimestamp || '',\n        sheetName\n      }\n    };\n  });\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1408,
+        -320
+      ],
+      "id": "1d21a498-068a-4ab7-9d56-0b33bf385569",
+      "name": "Mapping to Excel"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop over all input items and trim the 'Note' field\nfor (const item of $input.all()) {\n  // Trim Note if it exists\n  if (item.json.Note && typeof item.json.Note === 'string') {\n    item.json.Note = item.json.Note.trim().replace(/\\s+/g, ' ');\n  }\n}\n\n// Return the modified input items\nreturn $input.all();\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1632,
+        -320
+      ],
+      "id": "dfe6954a-6dc2-40b9-8e90-1e6d04f2b31e",
+      "name": "Remove Whitespaces"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        2080,
+        -320
+      ],
+      "id": "21f4962f-812a-4106-9b74-b3433e36fea6",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Initialize an array to hold the output\nconst output = [];\n\n// Group the items by sheetName\nconst groupedBySheet = {};\n\n// Loop through each item and group by 'sheetName'\nfor (let i = 0; i < items.length; i++) {\n    const item = items[i].json;\n    const sheetName = item.sheetName;  // Use the 'sheetName' field to group\n\n    if (!groupedBySheet[sheetName]) {\n        groupedBySheet[sheetName] = [];\n    }\n\n    // Push the transaction details to the corresponding group\n    groupedBySheet[sheetName].push(item);\n}\n\n// Create the output array of objects where each contains 'json' and the grouped items\nfor (const sheetName in groupedBySheet) {\n    output.push({\n        json: {\n            sheetName: sheetName,\n            items: groupedBySheet[sheetName]  // Store the grouped items under 'items'\n        }\n    });\n}\n\n// Return the final output\nreturn output;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1856,
+        -320
+      ],
+      "id": "2565d4c8-30f5-477c-8473-da175106c2c2",
+      "name": "Group by Month"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const html = $json.html || '';\nconst text = $json.text || '';\nconst emailTimestampRaw = $json.headers?.date\n  ? new Date($json.headers.date)\n  : null;\n\nconst result = {\n  amount: 0,\n  currency: 'USD',\n  date: '',\n  time: '',\n  merchant: '',\n  source: 'ProviderA',\n  emailTimestamp: emailTimestampRaw ? emailTimestampRaw.toISOString() : '',\n};\n\nfunction formatTimeWithAmPm(dateObj) {\n  if (!dateObj || isNaN(dateObj)) return '';\n  return dateObj.toLocaleTimeString('en-US', {\n    hour: 'numeric',\n    minute: '2-digit',\n    hour12: true,\n  });\n}\n\n// Derive year from email metadata\nconst emailYear = emailTimestampRaw\n  ? emailTimestampRaw.getFullYear()\n  : new Date().getFullYear();\n\n/**\n * Example notification pattern:\n * \"You've spent USD 12.34 at MERCHANT on 1 Jan 2025 12:34\"\n */\nconst spendMatch = (html || text).match(\n  /You've spent (USD )?([\\d.]+) at (.+?) on (\\d{1,2} \\w+ \\d{4} \\d{2}:\\d{2})/i\n);\n\nif (spendMatch) {\n  result.amount = parseFloat(spendMatch[2]);\n  result.merchant = spendMatch[3].trim();\n\n  const dt = new Date(spendMatch[4]);\n  if (!isNaN(dt)) {\n    const month = String(dt.getMonth() + 1).padStart(2, '0');\n    const day = String(dt.getDate()).padStart(2, '0');\n    result.date = `${emailYear}-${month}-${day}`;\n    result.time = formatTimeWithAmPm(dt);\n  }\n}\n\nreturn { json: result };\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1184,
+        -320
+      ],
+      "id": "9e1df184-52ad-43c2-873f-d49b9d0927c5",
+      "name": "Extract Info"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Initialize an array to hold the final output\nconst output = [];\n\n// Loop through the grouped array (which now contains {sheetName: ..., items: [...]})\nfor (let i = 0; i < items.length; i++) {\n    const group = items[i].json;  // Each group contains {sheetName, items}\n    \n    // Ensure the group has both 'sheetName' and 'items' properties\n    if (group && group.sheetName && Array.isArray(group.items)) {\n        const sheetName = group.sheetName;  // Get the sheetName\n        const groupedItems = group.items;  // Get the array of items\n\n        // Loop through each item in the group and push it to the output\n        for (let j = 0; j < groupedItems.length; j++) {\n            const item = groupedItems[j];\n\n            // Append the sheetName back to the item (to track where it came from)\n            item.sheetName = sheetName;\n\n            // Push the item to the final output array\n            output.push(item);\n        }\n    } else {\n        throw new Error(`Invalid group structure, expected { sheetName: string, items: array }, but found ${JSON.stringify(group)}`);\n    }\n}\n\n// Return the final array of split items\nreturn output;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2320,
+        -256
+      ],
+      "id": "036cedf7-0cf0-49b6-b2d9-f8409b5e23a6",
+      "name": "Split Grouping"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "={{ $json.sheetName }}",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED"
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2528,
+        -256
+      ],
+      "id": "e7f483b5-899a-40c1-94bc-235e11f06253",
+      "name": "Append or update row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_OAUTH_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "command": "start \"\" \"https://docs.google.com/spreadsheets/d/SHEET_ID_HERE/edit\"\n"
+      },
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        2320,
+        -416
+      ],
+      "id": "4b97c001-ee39-479d-ab04-0c90d0433c87",
+      "name": "Open Google Sheet"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Determine Dynamic Sheet Name",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Determine Dynamic Sheet Name": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Get latest Date",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create sheet": {
+      "main": [
+        [
+          {
+            "node": "Return Previous Month Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Return Previous Month Sheet": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get latest Date": {
+      "main": [
+        [
+          {
+            "node": "Get many messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mapping to Excel": {
+      "main": [
+        [
+          {
+            "node": "Remove Whitespaces",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Remove Whitespaces": {
+      "main": [
+        [
+          {
+            "node": "Group by Month",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Group by Month": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get many messages": {
+      "main": [
+        [
+          {
+            "node": "Extract Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Info": {
+      "main": [
+        [
+          {
+            "node": "Mapping to Excel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Open Google Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Split Grouping",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Grouping": {
+      "main": [
+        [
+          {
+            "node": "Append or update row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append or update row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "a004124b-0f8c-498a-ba21-4cfd7435d027",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "1a9b02fa3633aab9840a886f39057040de095b9f61e9688619e96e949ba177dd"
+  },
+  "id": "BCtueJ7mm0ZoiqzwZD4_4",
+  "tags": []
+}
