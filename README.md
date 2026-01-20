@@ -1,4 +1,4 @@
-# Automated Transaction Processing Workflow for n8n
+# Automated Transaction Processing Workflow Template for n8n
 
 This n8n workflow automates the extraction, processing, and recording of transaction data from email notifications into dynamic Google Sheets tabs grouped by month.
 
@@ -34,6 +34,12 @@ This n8n workflow automates the extraction, processing, and recording of transac
 - **Google Sheets Nodes**: Read, create, and update sheets dynamically.
 - **Gmail Node**: Retrieves transaction emails.
 - **Execute Command**: Opens the Google Sheet URL after processing.
+
+---
+
+## Security Notice
+- All credentials, sheet IDs, email senders, and example values in this repository are **placeholders**.
+- No real accounts, personal data, or transaction information are included.
 
 ---
 
